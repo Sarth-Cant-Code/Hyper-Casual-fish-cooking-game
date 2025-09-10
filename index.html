@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dosa Making Game</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 10px;
+      background: linear-gradient(135deg, #ff9a56, #ff6b35);
+      font-family: 'Arial', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .game-container {
+      width: min(600px, 95vw);
+      max-width: 600px;
+      height: min(800px, 95vh);
+      background: #2c2c2c;
+      border-radius: 20px;
+      padding: min(20px, 3vw);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .score {
+      color: white;
+      font-size: clamp(16px, 4vw, 20px);
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pan {
+      width: min(400px, 80vw);
+      height: min(400px, 80vw);
+      max-width: 400px;
+      max-height: 400px;
+      background: radial-gradient(circle, #1a1a1a 60%, #333 100%);
+      border-radius: 50%;
+      margin: 20px auto;
+      position: relative;
+      border: 8px solid #666;
+      overflow: hidden;
+      touch-action: none;
+      transition: background 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .ladle {
+      position: fixed;
+      width: clamp(50px, 12vw, 60px);
+      height: clamp(65px, 16vw, 80px);
+      background: #8b4513;
+      border-radius: 30px 30px 50% 50%;
+      pointer-events: none;
+      z-index: 999;
+      display: none;
+    }
+
+    .ladle::before {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 40px;
+      background: #654321;
+      border-radius: 2px;
+    }
+
+    .ladle::after {
+      content: '';
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 40px;
+      background: #f4e4bc;
+      border-radius: 50%;
+      opacity: 0.8;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 20px;
+      padding: 0 10px;
+    }
+
+    .btn {
+      padding: 12px 8px;
+      border: none;
+      border-radius: 10px;
+      font-size: clamp(12px, 3vw, 14px);
+      font-weight: bold;
+      cursor: pointer;
+      background: #fff3;
+      color: white;
+      touch-action: manipulation;
+      transition: background 0.2s, transform 0.1s;
+      min-height: 44px; /* iOS touch target minimum */
+    }
+
+    .btn:hover {
+      background: #fff4;
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+      background: #fff5;
+    }
+
+    .hint {
+      text-align: center;
+      color: yellow;
+      margin-top: 10px;
+      font-size: clamp(12px, 3vw, 14px);
+      padding: 0 10px;
+    }
+
+    .particle {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.8);
+      pointer-events: none;
+      animation: rise 1s forwards;
+    }
+
+    @keyframes rise {
+      from { transform: translateY(0); opacity: 1; }
+      to { transform: translateY(-40px); opacity: 0; }
+    }
+
+    /* Mobile specific adjustments */
+    @media (max-width: 768px) {
+      body {
+        padding: 5px;
+      }
+
+      .game-container {
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 15px;
+        padding: 15px;
+      }
+
+      .pan {
+        width: min(300px, 75vw);
+        height: min(300px, 75vw);
+        border-width: 6px;
+      }
+
+      .controls {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 15px;
+      }
+
+      .btn {
+        padding: 14px 8px;
+        min-height: 48px;
+      }
+    }
+
+    /* Very small screens */
+    @media (max-width: 480px) {
+      .pan {
+        width: min(250px, 70vw);
+        height: min(250px, 70vw);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="score">
+      <span>Dosas: <span id="dosaCount">0</span></span>
+      <span id="heatLevel">Heat: Low</span>
+    </div>
+
+    <div class="pan" id="pan"></div>
+    <div class="ladle" id="ladle"></div>
+
+    <div class="controls">
+      <button class="btn" id="toggleLadle">🥄 Enable Ladle</button>
+      <button class="btn" id="flipBtn">🍳 Flip</button>
+      <button class="btn" id="heatBtn">🔥 Heat</button>
+      <button class="btn" id="plateBtn">🍽️ Plate</button>
+    </div>
+
+    <div class="hint" id="hintText">Tap 'Enable Ladle' then drag to spread batter</div>
+  </div>
+
+  <script>
+    class DosaGame {
+      constructor() {
+        this.dosaCount = 0;
+        this.heat = 1; // 1=low,2=medium,3=high
+        this.ladleEnabled = false;
+        this.isHolding = false;
+        this.ladle = document.getElementById('ladle');
+        this.pan = document.getElementById('pan');
+        this.dosaCountEl = document.getElementById('dosaCount');
+        this.heatLevelEl = document.getElementById('heatLevel');
+        this.hintText = document.getElementById('hintText');
+
+        this.bindEvents();
+        this.updateToggleButton();
+      }
+
+      bindEvents() {
+        const toggleBtn = document.getElementById('toggleLadle');
+        
+        toggleBtn.onclick = () => {
+          this.ladleEnabled = !this.ladleEnabled;
+          this.ladle.style.display = this.ladleEnabled ? 'block' : 'none';
+          this.updateToggleButton();
+          
+          if (this.ladleEnabled) {
+            this.hintText.textContent = "Drag to spread batter on the pan";
+          } else {
+            this.hintText.textContent = "Tap 'Enable Ladle' then drag to spread batter";
+          }
+        };
+
+        // Mouse events for desktop
+        document.addEventListener('mousemove', (e) => {
+          if (this.ladleEnabled) {
+            this.updateLadlePosition(e.clientX, e.clientY);
+            if (this.isHolding) {
+              this.spreadBatter(e.clientX, e.clientY);
+            }
+          }
+        });
+
+        document.addEventListener('mousedown', (e) => {
+          if (this.ladleEnabled) {
+            this.isHolding = true;
+            e.preventDefault();
+          }
+        });
+
+        document.addEventListener('mouseup', () => {
+          this.isHolding = false;
+        });
+
+        // Touch events for mobile
+        document.addEventListener('touchmove', (e) => {
+          if (this.ladleEnabled && e.touches.length > 0) {
+            const touch = e.touches[0];
+            this.updateLadlePosition(touch.clientX, touch.clientY);
+            if (this.isHolding) {
+              this.spreadBatter(touch.clientX, touch.clientY);
+            }
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        document.addEventListener('touchstart', (e) => {
+          if (this.ladleEnabled) {
+            this.isHolding = true;
+            if (e.touches.length > 0) {
+              const touch = e.touches[0];
+              this.updateLadlePosition(touch.clientX, touch.clientY);
+            }
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        document.addEventListener('touchend', () => {
+          this.isHolding = false;
+        });
+
+        // Prevent scrolling when ladle is enabled
+        document.addEventListener('touchmove', (e) => {
+          if (this.ladleEnabled) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        // Game control buttons
+        document.getElementById('heatBtn').onclick = () => this.changeHeat();
+        document.getElementById('flipBtn').onclick = () => this.flipDosa();
+        document.getElementById('plateBtn').onclick = () => this.plateDosa();
+      }
+
+      updateToggleButton() {
+        const toggleBtn = document.getElementById('toggleLadle');
+        toggleBtn.textContent = this.ladleEnabled ? '🥄 Disable Ladle' : '🥄 Enable Ladle';
+        toggleBtn.style.background = this.ladleEnabled ? '#4CAF50' : '#fff3';
+      }
+
+      updateLadlePosition(x, y) {
+        this.ladle.style.left = (x - this.ladle.offsetWidth / 2) + 'px';
+        this.ladle.style.top = (y - this.ladle.offsetHeight / 2) + 'px';
+      }
+
+      spreadBatter(x, y) {
+        const rect = this.pan.getBoundingClientRect();
+        
+        // Check if the position is within the pan
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return;
+
+        // Check if it's within the circular pan (distance from center)
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const radius = rect.width / 2 - 10; // Account for border
+        const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+        
+        if (distance > radius) return;
+
+        // Create batter drop
+        const drop = document.createElement('div');
+        drop.style.position = 'absolute';
+        drop.style.width = '20px';
+        drop.style.height = '20px';
+        drop.style.borderRadius = '50%';
+        drop.style.background = '#f4e4bc';
+        drop.style.left = (x - rect.left - 10) + 'px';
+        drop.style.top = (y - rect.top - 10) + 'px';
+        drop.style.transition = 'transform 0.5s ease';
+        this.pan.appendChild(drop);
+
+        // Add sizzle effect based on heat level
+        if (this.heat >= 2) {
+          drop.style.background = this.heat === 2 ? '#f4d4ac' : '#f4c49c';
+        }
+
+        // Create particle effect
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = (x - rect.left) + 'px';
+        particle.style.top = (y - rect.top) + 'px';
+        this.pan.appendChild(particle);
+        
+        setTimeout(() => {
+          if (particle.parentNode) {
+            particle.remove();
+          }
+        }, 1000);
+      }
+
+      changeHeat() {
+        this.heat = this.heat % 3 + 1;
+        if (this.heat === 1) {
+          this.pan.style.background = "radial-gradient(circle, #1a1a1a 60%, #333 100%)";
+          this.heatLevelEl.textContent = "Heat: Low";
+          this.hintText.textContent = "🔥 Low heat - batter spreads slowly";
+        } else if (this.heat === 2) {
+          this.pan.style.background = "radial-gradient(circle, #4a2a2a 60%, #663 100%)";
+          this.heatLevelEl.textContent = "Heat: Medium";
+          this.hintText.textContent = "🔥🔥 Medium heat - perfect for cooking!";
+        } else {
+          this.pan.style.background = "radial-gradient(circle, #7a1a1a 60%, #933 100%)";
+          this.heatLevelEl.textContent = "Heat: High";
+          this.hintText.textContent = "🔥🔥🔥 High heat - watch out for burning!";
+        }
+      }
+
+      flipDosa() {
+        const batterDrops = this.pan.querySelectorAll('div:not(.particle)');
+        if (batterDrops.length === 0) {
+          this.hintText.textContent = "❌ No dosa to flip! Spread some batter first.";
+          return;
+        }
+
+        // Add flip animation
+        batterDrops.forEach(drop => {
+          if (!drop.classList.contains('particle')) {
+            drop.style.background = '#d4b896'; // Cooked color
+            drop.style.transform = 'rotateY(180deg)';
+          }
+        });
+
+        this.hintText.textContent = "✅ Dosa flipped! Ready to plate when golden.";
+      }
+
+      plateDosa() {
+        const batterDrops = this.pan.querySelectorAll('div:not(.particle)');
+        if (batterDrops.length === 0) {
+          this.hintText.textContent = "❌ No dosa to plate! Make one first.";
+          return;
+        }
+
+        this.dosaCount++;
+        this.dosaCountEl.textContent = this.dosaCount;
+        
+        // Clear the pan
+        this.pan.innerHTML = "";
+        
+        // Show success message
+        this.hintText.textContent = `🍽️ Dosa #${this.dosaCount} plated! Make another one.`;
+        
+        // Reset heat to low for next dosa
+        this.heat = 1;
+        this.pan.style.background = "radial-gradient(circle, #1a1a1a 60%, #333 100%)";
+        this.heatLevelEl.textContent = "Heat: Low";
+      }
+    }
+
+    // Initialize the game
+    new DosaGame();
+  </script>
+</body>
+</html>
